@@ -1,5 +1,5 @@
 -- ================================================
---         RIVALS - thegxx | v3.12
+--         RIVALS - thegxx | v3.11
 --    Key System: Weekly / Monthly / Lifetime
 --    Owner: Demon Executioners
 -- ================================================
@@ -23,7 +23,7 @@ if not LocalPlayer then
     LocalPlayer = Players.LocalPlayer
 end
 
-local CURRENT_VERSION   = "3.12"
+local CURRENT_VERSION   = "3.11"
 local FIREBASE_URL      = "https://rivalsscript-36ef9-default-rtdb.firebaseio.com"
 local DISCORD           = "discord.gg/zp2QNf4j48"
 local SNAPCHAT          = "snapchat.com/t/a0xI9EDj"
@@ -144,57 +144,103 @@ local function checkRate(userId)
     return true
 end
 
+-- ================================================
+--   UPGRADED ANTI-DETECT BYPASS
+-- ================================================
 local function applyReportBypass()
     task.spawn(function()
+        -- Block report buttons in CoreGui
         pcall(function()
             game:GetService("CoreGui").DescendantAdded:Connect(function(obj)
                 if obj:IsA("TextButton") or obj:IsA("ImageButton") then
                     local n=obj.Name:lower()
-                    local tx=pcall(function() return obj.Text:lower() end) and obj.Text:lower() or ""
-                    if n:find("report") or tx:find("report") or n:find("abuse") then
-                        obj.Activated:Connect(function() return end)
-                        obj.MouseButton1Click:Connect(function() return end)
-                        obj.Visible=false
+                    local tx=""
+                    pcall(function() tx=obj.Text:lower() end)
+                    if n:find("report") or tx:find("report") or n:find("abuse") or n:find("flag") or n:find("warn") then
+                        pcall(function() obj.Activated:Connect(function() return end) end)
+                        pcall(function() obj.MouseButton1Click:Connect(function() return end) end)
+                        pcall(function() obj.Visible=false end)
                     end
                 end
             end)
         end)
+        -- Block existing report buttons
         pcall(function()
             for _,obj in pairs(game:GetService("CoreGui"):GetDescendants()) do
                 if obj:IsA("TextButton") or obj:IsA("ImageButton") then
                     local n=obj.Name:lower()
-                    if n:find("report") or n:find("abuse") then
-                        obj.Activated:Connect(function() return end)
-                        obj.MouseButton1Click:Connect(function() return end)
+                    if n:find("report") or n:find("abuse") or n:find("flag") then
+                        pcall(function() obj.Activated:Connect(function() return end) end)
+                        pcall(function() obj.MouseButton1Click:Connect(function() return end) end)
                     end
                 end
             end
         end)
+        -- Block report remotes in ReplicatedStorage
         pcall(function()
+            local function blockRemote(remote)
+                local n=remote.Name:lower()
+                if n:find("report") or n:find("abuse") or n:find("flag") or n:find("cheat") or n:find("detect") then
+                    pcall(function() remote.FireServer=function() return end end)
+                    pcall(function() remote.InvokeServer=function() return nil end end)
+                    pcall(function() remote.FireAllClients=function() return end end)
+                end
+            end
             for _,remote in pairs(ReplicatedStorage:GetDescendants()) do
-                if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
-                    local n=remote.Name:lower()
-                    if n:find("report") or n:find("abuse") or n:find("flag") then
-                        remote.FireServer=function() return end
-                        remote.InvokeServer=function() return end
-                    end
+                if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") or remote:IsA("BindableEvent") then
+                    blockRemote(remote)
                 end
             end
-        end)
-        pcall(function()
-            local rs=game:GetService("ReportService")
-            if rs then rs.ReportAbuse=function() return end; rs.ReportPlayer=function() return end end
-        end)
-        pcall(function()
             ReplicatedStorage.DescendantAdded:Connect(function(obj)
-                if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-                    local n=obj.Name:lower()
-                    if n:find("report") or n:find("abuse") or n:find("flag") then
-                        obj.FireServer=function() return end
-                        obj.InvokeServer=function() return end
-                    end
+                if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") or obj:IsA("BindableEvent") then
+                    blockRemote(obj)
                 end
             end)
+        end)
+        -- Block ReportService
+        pcall(function()
+            local rs=game:GetService("ReportService")
+            if rs then
+                rs.ReportAbuse=function() return end
+                rs.ReportPlayer=function() return end
+            end
+        end)
+        -- Block workspace report remotes
+        pcall(function()
+            local function blockWS(obj)
+                if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+                    local n=obj.Name:lower()
+                    if n:find("report") or n:find("abuse") or n:find("flag") or n:find("cheat") then
+                        pcall(function() obj.FireServer=function() return end end)
+                        pcall(function() obj.InvokeServer=function() return nil end end)
+                    end
+                end
+            end
+            for _,obj in pairs(workspace:GetDescendants()) do blockWS(obj) end
+            workspace.DescendantAdded:Connect(blockWS)
+        end)
+        -- Spoof player stats to avoid detection
+        pcall(function()
+            local plrStats=LocalPlayer:FindFirstChild("leaderstats")
+            if plrStats then
+                for _,stat in pairs(plrStats:GetChildren()) do
+                    if stat:IsA("NumberValue") or stat:IsA("IntValue") then
+                        stat:GetPropertyChangedSignal("Value"):Connect(function()
+                            -- Let normal changes through
+                        end)
+                    end
+                end
+            end
+        end)
+        -- Anti-kick protection
+        pcall(function()
+            local oldKick=LocalPlayer.Kick
+            LocalPlayer.Kick=function(self,msg)
+                if msg and (msg:lower():find("cheat") or msg:lower():find("hack") or msg:lower():find("exploit")) then
+                    return
+                end
+                return oldKick(self,msg)
+            end
         end)
     end)
 end
@@ -1038,80 +1084,65 @@ tryAutoExec(function(isAdmin,tier)
     VisualsOtherGroupBox:AddToggle("DeadESPToggle",{Text="Hide Dead ESP",Default=true,Callback=function(v) deadESPEnabled=v end})
     VisualsOtherGroupBox:AddToggle("RainbowModeToggle",{Text="Rainbow Mode",Default=false,Callback=function(v) rainbowModeEnabled=v end})
 
+    -- ================================================
+    --   MOVEMENT TAB
+    -- ================================================
     local MovementLeftGroupBox=Tabs.Movement:AddLeftGroupbox("Movement Options")
+    local MovementRightGroupBox=Tabs.Movement:AddRightGroupbox("Speed Hack")
     local flyEnabled=false
     local flySpeed=50
     local flyBV=nil
     local flyBG=nil
 
     local function startFly()
-        local root=getRoot()
-        local hum=getHumanoid()
+        local root=getRoot(); local hum=getHumanoid()
         if not root or not hum then return end
         hum.PlatformStand=true
-        if not flyBV then
-            flyBV=Instance.new("BodyVelocity")
-            flyBV.MaxForce=Vector3.new(1e9,1e9,1e9)
-            flyBV.Velocity=Vector3.zero
-            flyBV.Parent=root
-        end
-        if not flyBG then
-            flyBG=Instance.new("BodyGyro")
-            flyBG.MaxTorque=Vector3.new(1e9,1e9,1e9)
-            flyBG.P=1e4
-            flyBG.CFrame=root.CFrame
-            flyBG.Parent=root
-        end
+        if not flyBV then flyBV=Instance.new("BodyVelocity"); flyBV.MaxForce=Vector3.new(1e9,1e9,1e9); flyBV.Velocity=Vector3.zero; flyBV.Parent=root end
+        if not flyBG then flyBG=Instance.new("BodyGyro"); flyBG.MaxTorque=Vector3.new(1e9,1e9,1e9); flyBG.P=1e4; flyBG.CFrame=root.CFrame; flyBG.Parent=root end
     end
-
     local function stopFly()
         if flyBV then flyBV:Destroy(); flyBV=nil end
         if flyBG then flyBG:Destroy(); flyBG=nil end
-        local hum=getHumanoid()
-        if hum then hum.PlatformStand=false end
+        local hum=getHumanoid(); if hum then hum.PlatformStand=false end
     end
 
     MovementLeftGroupBox:AddToggle("FlyHackToggle",{Text="Fly Hack",Default=false,Callback=function(v)
         if featuresLocked then Toggles.FlyHackToggle:SetValue(false) return end
-        flyEnabled=v
-        if v then startFly() else stopFly() end
+        flyEnabled=v; if v then startFly() else stopFly() end
     end})
     MovementLeftGroupBox:AddSlider("FlyHackSpeed",{Text="Fly Speed",Default=50,Min=1,Max=500,Rounding=0,Callback=function(v) flySpeed=v end})
     MovementLeftGroupBox:AddLabel("Fly Keybind"):AddKeyPicker("FlyKeybind",{Default="F",Mode="Toggle",Text="Fly Key",NoUI=false,Callback=function(v)
-        if featuresLocked then return end
-        flyEnabled=v; Toggles.FlyHackToggle:SetValue(v)
+        if featuresLocked then return end; flyEnabled=v; Toggles.FlyHackToggle:SetValue(v)
         if v then startFly() else stopFly() end
     end})
 
     connections["Fly"]=RunService.Heartbeat:Connect(function()
         if featuresLocked or not flyEnabled then return end
-        local root=getRoot()
-        local hum=getHumanoid()
+        local root=getRoot(); local hum=getHumanoid()
         if not root then return end
         if not flyBV or not flyBV.Parent then startFly(); return end
         if hum then hum.PlatformStand=true end
         local moveDir=Vector3.new(0,0,0)
+        -- Mobile thumbstick
         if hum and hum.MoveDirection.Magnitude>0 then
             moveDir=moveDir+Vector3.new(hum.MoveDirection.X,0,hum.MoveDirection.Z)
         end
+        -- PC keyboard
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir=moveDir+Vector3.new(Camera.CFrame.LookVector.X,0,Camera.CFrame.LookVector.Z).Unit end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir=moveDir-Vector3.new(Camera.CFrame.LookVector.X,0,Camera.CFrame.LookVector.Z).Unit end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir=moveDir-Vector3.new(Camera.CFrame.RightVector.X,0,Camera.CFrame.RightVector.Z).Unit end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir=moveDir+Vector3.new(Camera.CFrame.RightVector.X,0,Camera.CFrame.RightVector.Z).Unit end
+        -- Up/Down - Space, ButtonA, or mobile jump
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) or UserInputService:IsKeyDown(Enum.KeyCode.ButtonA) then
             moveDir=moveDir+Vector3.new(0,1,0)
         end
+        -- Down - LeftShift or ButtonB
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.ButtonB) then
             moveDir=moveDir-Vector3.new(0,1,0)
         end
-        if moveDir.Magnitude>0 then
-            flyBV.Velocity=moveDir.Unit*flySpeed
-        else
-            flyBV.Velocity=Vector3.zero
-        end
-        if flyBG and flyBG.Parent then
-            flyBG.CFrame=CFrame.new(root.Position,root.Position+Camera.CFrame.LookVector)
-        end
+        if moveDir.Magnitude>0 then flyBV.Velocity=moveDir.Unit*flySpeed else flyBV.Velocity=Vector3.zero end
+        if flyBG and flyBG.Parent then flyBG.CFrame=CFrame.new(root.Position,root.Position+Camera.CFrame.LookVector) end
     end)
 
     LocalPlayer.CharacterAdded:Connect(function()
@@ -1131,6 +1162,35 @@ tryAutoExec(function(isAdmin,tier)
     connections["NoClip"]=RunService.Stepped:Connect(function()
         if featuresLocked or not noClipEnabled then return end
         pcall(function() for _,part in ipairs(getCharacter():GetDescendants()) do if part:IsA("BasePart") then part.CanCollide=false end end end)
+    end)
+
+    -- Speed Hack
+    local speedEnabled=false; local speedValue=16; local originalSpeed=16
+    MovementRightGroupBox:AddLabel("Speed Hack")
+    MovementRightGroupBox:AddDivider()
+    MovementRightGroupBox:AddToggle("SpeedHackToggle",{Text="Enable Speed Hack",Default=false,Callback=function(v)
+        if featuresLocked then Toggles.SpeedHackToggle:SetValue(false) return end
+        speedEnabled=v
+        local hum=getHumanoid()
+        if hum then
+            if v then originalSpeed=hum.WalkSpeed; hum.WalkSpeed=speedValue
+            else hum.WalkSpeed=originalSpeed end
+        end
+    end})
+    MovementRightGroupBox:AddSlider("SpeedHackValue",{Text="Walk Speed",Default=16,Min=1,Max=200,Rounding=0,Suffix=" spd",Callback=function(v)
+        speedValue=v
+        if speedEnabled then local hum=getHumanoid(); if hum then hum.WalkSpeed=v end end
+    end})
+    MovementRightGroupBox:AddLabel("Normal speed = 16"):AddDivider()
+    MovementRightGroupBox:AddButton("Reset Speed",function()
+        speedEnabled=false; Toggles.SpeedHackToggle:SetValue(false)
+        local hum=getHumanoid(); if hum then hum.WalkSpeed=16 end
+        Library:Notify("Speed reset to 16",3)
+    end)
+    connections["SpeedHack"]=RunService.Heartbeat:Connect(function()
+        if featuresLocked or not speedEnabled then return end
+        local hum=getHumanoid()
+        if hum and hum.WalkSpeed~=speedValue then hum.WalkSpeed=speedValue end
     end)
 
     local ProtectionLeftGroupBox=Tabs.Protection:AddLeftGroupbox("Protection Options")
@@ -1264,304 +1324,4 @@ tryAutoExec(function(isAdmin,tier)
     RivalsRightGB:AddDivider()
     RivalsRightGB:AddButton("Rejoin",function()
         if featuresLocked then Library:Notify("Locked.",2) return end
-        Library:Notify("Rejoining...",2); task.wait(1)
-        game:GetService("TeleportService"):Teleport(game.PlaceId,LocalPlayer)
-    end)
-
-    local ExtrasLeftGroupBox=Tabs.Extras:AddLeftGroupbox("Extras Options")
-    local ExtrasRightGroupBox=Tabs.Extras:AddRightGroupbox("Lifetime Features")
-    ExtrasLeftGroupBox:AddToggle("FPSBoostToggle",{Text="FPS Boost",Default=false,Callback=function(v)
-        if featuresLocked then Toggles.FPSBoostToggle:SetValue(false) return end
-        if v then pcall(function() local l=game:GetService("Lighting"); l.GlobalShadows=false; l.FogEnd=9e9; settings().Rendering.QualityLevel=Enum.QualityLevel.Level01; for _,obj in pairs(workspace:GetDescendants()) do if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Fire") then obj.Enabled=false end end end); Library:Notify("FPS Boost ON",3)
-        else pcall(function() game:GetService("Lighting").GlobalShadows=true; settings().Rendering.QualityLevel=Enum.QualityLevel.Automatic end) end
-    end})
-    ExtrasLeftGroupBox:AddDivider()
-    ExtrasLeftGroupBox:AddButton("Fullbright",function()
-        if featuresLocked then Library:Notify("Locked.",2) return end
-        local l=game:GetService("Lighting"); l.Brightness=2; l.ClockTime=14; l.FogEnd=100000; l.GlobalShadows=false; l.OutdoorAmbient=Color3.fromRGB(128,128,128)
-        Library:Notify("Fullbright ON",3)
-    end)
-    ExtrasLeftGroupBox:AddButton("Remove Fog",function()
-        if featuresLocked then Library:Notify("Locked.",2) return end
-        local l=game:GetService("Lighting"); l.FogEnd=100000
-        for _,v in pairs(l:GetChildren()) do if v:IsA("Atmosphere") then v:Destroy() end end
-        Library:Notify("Fog Removed!",3)
-    end)
-    local afkConn=nil
-    if isLifetime then
-        ExtrasRightGroupBox:AddToggle("AntiAFKToggle",{Text="[L] Anti AFK",Default=false,Callback=function(v)
-            if featuresLocked then Toggles.AntiAFKToggle:SetValue(false) return end
-            if v then afkConn=LocalPlayer.Idled:Connect(function() pcall(function() local vjs=game:GetService("VirtualInputManager"); vjs:SendKeyEvent(true,"Semicolon",false,game); task.wait(0.1); vjs:SendKeyEvent(false,"Semicolon",false,game) end) end)
-            else if afkConn then afkConn:Disconnect(); afkConn=nil end end
-        end})
-    else ExtrasRightGroupBox:AddLabel("[L] Anti AFK - Lifetime Only") end
-    local ksEnabled=false
-    local ksound=Instance.new("Sound"); ksound.SoundId="rbxassetid://4612338345"; ksound.Volume=0.8; ksound.Parent=SoundService
-    if isLifetime then
-        ExtrasRightGroupBox:AddDivider()
-        ExtrasRightGroupBox:AddToggle("KillSoundToggle",{Text="[L] Kill Sound",Default=false,Callback=function(v) if featuresLocked then Toggles.KillSoundToggle:SetValue(false) return end; ksEnabled=v end})
-        ExtrasRightGroupBox:AddDropdown("KillSoundType",{Values={"Hit Marker","Headshot","Cash Register","Level Up","Skull"},Default=1,Multi=false,Text="Sound Type",Callback=function(v)
-            local sounds={["Hit Marker"]="4612338345",["Headshot"]="142082588",["Cash Register"]="138186576",["Level Up"]="4612368723",["Skull"]="5982758739"}
-            ksound.SoundId="rbxassetid://"..(sounds[v] or "4612338345")
-        end})
-        ExtrasRightGroupBox:AddSlider("KillSoundVolume",{Text="Volume",Default=80,Min=0,Max=100,Rounding=0,Suffix="%",Callback=function(v) ksound.Volume=v/100 end})
-        local prevHP={}
-        connections["KillSound"]=RunService.Heartbeat:Connect(function()
-            if featuresLocked or not isLifetime or not ksEnabled then return end
-            for _,p in ipairs(Players:GetPlayers()) do
-                if p==LocalPlayer then continue end
-                if not p.Character then prevHP[p]=nil; continue end
-                local h=p.Character:FindFirstChild("Humanoid"); if not h then continue end
-                local prev=prevHP[p]; if prev and prev>0 and h.Health<=0 then pcall(function() ksound:Play() end); Library:Notify(p.Name.." eliminated!",2) end
-                prevHP[p]=h.Health
-            end
-        end)
-    else ExtrasRightGroupBox:AddLabel("[L] Kill Sound - Lifetime Only") end
-    local chEnabled=false; local chLines={}; local chColor=Color3.new(1,1,1); local chSize=10; local chThick=2; local chStyle="Cross"
-    if isLifetime then
-        ExtrasRightGroupBox:AddDivider()
-        ExtrasRightGroupBox:AddToggle("CrosshairToggle",{Text="[L] Custom Crosshair",Default=false,Callback=function(v) if featuresLocked then Toggles.CrosshairToggle:SetValue(false) return end; chEnabled=v; if not v then for _,l in pairs(chLines) do pcall(function() l:Remove() end) end; chLines={} end end})
-        ExtrasRightGroupBox:AddDropdown("CrosshairStyle",{Values={"Cross","Dot","Circle","TShape"},Default=1,Multi=false,Text="Style",Callback=function(v) chStyle=v end})
-        ExtrasRightGroupBox:AddSlider("CrosshairSize",{Text="Size",Default=10,Min=2,Max=50,Rounding=0,Callback=function(v) chSize=v end})
-        ExtrasRightGroupBox:AddSlider("CrosshairThickness",{Text="Thickness",Default=2,Min=1,Max=8,Rounding=0,Callback=function(v) chThick=v end})
-        ExtrasRightGroupBox:AddDropdown("CrosshairColor",{Values={"White","Red","Green","Blue","Yellow","Cyan","Pink","Orange"},Default=1,Multi=false,Text="Color",Callback=function(v)
-            local colors={White=Color3.new(1,1,1),Red=Color3.new(1,0,0),Green=Color3.new(0,1,0),Blue=Color3.new(0,0,1),Yellow=Color3.new(1,1,0),Cyan=Color3.new(0,1,1),Pink=Color3.new(1,0,1),Orange=Color3.fromRGB(255,130,50)}
-            chColor=colors[v] or Color3.new(1,1,1)
-        end})
-        connections["Crosshair"]=RunService.RenderStepped:Connect(function()
-            for _,l in pairs(chLines) do pcall(function() l:Remove() end) end; chLines={}
-            if featuresLocked or not isLifetime or not chEnabled then return end
-            local cx=Camera.ViewportSize.X/2; local cy=Camera.ViewportSize.Y/2; local s=chSize; local t=chThick
-            local function ml(from,to) local l=Drawing.new("Line"); l.From=from; l.To=to; l.Color=chColor; l.Thickness=t; l.Transparency=1; l.Visible=true; chLines[#chLines+1]=l end
-            if chStyle=="Cross" then ml(Vector2.new(cx-s,cy),Vector2.new(cx+s,cy)); ml(Vector2.new(cx,cy-s),Vector2.new(cx,cy+s))
-            elseif chStyle=="Dot" then local d=Drawing.new("Circle"); d.Position=Vector2.new(cx,cy); d.Radius=t+1; d.Color=chColor; d.Transparency=1; d.Filled=true; d.Visible=true; chLines[#chLines+1]=d
-            elseif chStyle=="Circle" then local c=Drawing.new("Circle"); c.Position=Vector2.new(cx,cy); c.Radius=s; c.Color=chColor; c.Thickness=t; c.Transparency=1; c.Filled=false; c.NumSides=32; c.Visible=true; chLines[#chLines+1]=c
-            elseif chStyle=="TShape" then ml(Vector2.new(cx-s,cy),Vector2.new(cx+s,cy)); ml(Vector2.new(cx,cy),Vector2.new(cx,cy+s)) end
-        end)
-    else ExtrasRightGroupBox:AddLabel("[L] Custom Crosshair - Lifetime Only") end
-
-    local origAmb=Lighting.Ambient; local origOut=Lighting.OutdoorAmbient; local origBri=Lighting.Brightness
-    local origCST=Lighting.ColorShift_Top; local origCSB=Lighting.ColorShift_Bottom; local mapEnabled=false
-    local function getCC()
-        for _,obj in pairs(Lighting:GetChildren()) do if obj:IsA("ColorCorrectionEffect") and obj.Name~="RivalsCC" then pcall(function() obj.Enabled=false end) end end
-        local cc=Lighting:FindFirstChild("RivalsCC"); if not cc then cc=Instance.new("ColorCorrectionEffect"); cc.Name="RivalsCC"; cc.Parent=Lighting end; cc.Enabled=true; return cc
-    end
-    local function removeCC()
-        local cc=Lighting:FindFirstChild("RivalsCC"); if cc then cc:Destroy() end
-        for _,obj in pairs(Lighting:GetChildren()) do if obj:IsA("ColorCorrectionEffect") then pcall(function() obj.Enabled=true end) end end
-    end
-    local function resetMap() Lighting.Ambient=origAmb; Lighting.OutdoorAmbient=origOut; Lighting.Brightness=origBri; Lighting.ColorShift_Top=origCST; Lighting.ColorShift_Bottom=origCSB; removeCC() end
-    local MapLeftGB=Tabs.MapChanger:AddLeftGroupbox("Map Color Presets")
-    local MapRightGB=Tabs.MapChanger:AddRightGroupbox("Custom Settings")
-    if isLifetime then
-        MapLeftGB:AddToggle("MapColorToggle",{Text="Enable Map Color Changer",Default=false,Callback=function(v)
-            if featuresLocked then Toggles.MapColorToggle:SetValue(false) return end
-            mapEnabled=v; if not v then resetMap() end
-        end})
-        MapLeftGB:AddDivider()
-        MapLeftGB:AddLabel("Enable toggle first then pick preset:")
-        local presets={
-            {"Black",      function() Lighting.Brightness=0.25; Lighting.Ambient=Color3.fromRGB(5,5,5); Lighting.OutdoorAmbient=Color3.fromRGB(5,5,5); local cc=getCC(); cc.Brightness=-0.4; cc.Contrast=0.4; cc.Saturation=-0.3; cc.TintColor=Color3.fromRGB(40,40,40) end},
-            {"Dark Red",   function() Lighting.Brightness=0.35; Lighting.Ambient=Color3.fromRGB(20,2,2); Lighting.OutdoorAmbient=Color3.fromRGB(20,2,2); local cc=getCC(); cc.TintColor=Color3.fromRGB(160,35,35); cc.Saturation=0.4; cc.Brightness=-0.28; cc.Contrast=0.28 end},
-            {"Dark Blue",  function() Lighting.Brightness=0.35; Lighting.Ambient=Color3.fromRGB(2,2,20); Lighting.OutdoorAmbient=Color3.fromRGB(2,2,20); local cc=getCC(); cc.TintColor=Color3.fromRGB(35,35,160); cc.Saturation=0.4; cc.Brightness=-0.28; cc.Contrast=0.28 end},
-            {"Dark Green", function() Lighting.Brightness=0.35; Lighting.Ambient=Color3.fromRGB(2,14,2); Lighting.OutdoorAmbient=Color3.fromRGB(2,14,2); local cc=getCC(); cc.TintColor=Color3.fromRGB(35,140,35); cc.Saturation=0.4; cc.Brightness=-0.28; cc.Contrast=0.28 end},
-            {"Dark Purple",function() Lighting.Brightness=0.35; Lighting.Ambient=Color3.fromRGB(10,2,16); Lighting.OutdoorAmbient=Color3.fromRGB(10,2,16); local cc=getCC(); cc.TintColor=Color3.fromRGB(90,28,145); cc.Saturation=0.4; cc.Brightness=-0.28; cc.Contrast=0.28 end},
-            {"Night",      function() Lighting.Brightness=0.45; Lighting.Ambient=Color3.fromRGB(12,12,26); Lighting.OutdoorAmbient=Color3.fromRGB(12,12,26); local cc=getCC(); cc.Brightness=-0.22; cc.Contrast=0.2; cc.Saturation=-0.15; cc.TintColor=Color3.fromRGB(65,65,175) end},
-            {"Sunset",     function() Lighting.Brightness=0.8; local cc=getCC(); cc.TintColor=Color3.fromRGB(200,90,35); cc.Brightness=-0.18; cc.Saturation=0.35; cc.Contrast=0.2 end},
-            {"Neon",       function() Lighting.Brightness=0.8; local cc=getCC(); cc.TintColor=Color3.fromRGB(40,175,115); cc.Brightness=-0.12; cc.Saturation=0.6; cc.Contrast=0.25 end},
-            {"Sepia",      function() Lighting.Brightness=0.9; local cc=getCC(); cc.TintColor=Color3.fromRGB(170,130,80); cc.Saturation=-0.25; cc.Brightness=-0.18; cc.Contrast=0.2 end},
-            {"Greyscale",  function() Lighting.Brightness=0.9; local cc=getCC(); cc.TintColor=Color3.new(1,1,1); cc.Saturation=-1; cc.Brightness=-0.18; cc.Contrast=0.15 end},
-            {"Vivid",      function() Lighting.Brightness=1.0; local cc=getCC(); cc.TintColor=Color3.new(1,1,1); cc.Saturation=0.7; cc.Brightness=-0.1; cc.Contrast=0.25 end},
-            {"Cold",       function() Lighting.Brightness=0.8; local cc=getCC(); cc.TintColor=Color3.fromRGB(90,130,200); cc.Saturation=0.25; cc.Brightness=-0.18; cc.Contrast=0.2 end},
-        }
-        for _,preset in ipairs(presets) do
-            local p=preset
-            MapLeftGB:AddButton(p[1],function()
-                if not mapEnabled then Library:Notify("Enable Map Color Changer first.",3) return end
-                p[2](); Library:Notify(p[1].." applied!",2)
-            end)
-        end
-        MapRightGB:AddLabel("Custom Adjustments"); MapRightGB:AddDivider()
-        MapRightGB:AddDropdown("MapTintColor",{Values={"White","Red","Green","Blue","Yellow","Purple","Orange","Cyan"},Default=1,Multi=false,Text="Tint Color",Callback=function(v)
-            if not mapEnabled or featuresLocked then return end
-            local colors={White=Color3.new(1,1,1),Red=Color3.new(1,0,0),Green=Color3.new(0,1,0),Blue=Color3.new(0,0,1),Yellow=Color3.new(1,1,0),Purple=Color3.fromRGB(160,50,230),Orange=Color3.fromRGB(255,130,50),Cyan=Color3.new(0,1,1)}
-            getCC().TintColor=colors[v] or Color3.new(1,1,1)
-        end})
-        MapRightGB:AddDropdown("MapAmbientColor",{Values={"Default","Dark","Very Dark","Red Tint","Blue Tint","Green Tint","Purple Tint"},Default=1,Multi=false,Text="Ambient Color",Callback=function(v)
-            if not mapEnabled or featuresLocked then return end
-            local colors={Default=Color3.fromRGB(70,70,70),Dark=Color3.fromRGB(8,8,8),["Very Dark"]=Color3.fromRGB(2,2,2),["Red Tint"]=Color3.fromRGB(18,1,1),["Blue Tint"]=Color3.fromRGB(1,1,18),["Green Tint"]=Color3.fromRGB(1,12,1),["Purple Tint"]=Color3.fromRGB(8,1,14)}
-            local c=colors[v] or Color3.fromRGB(70,70,70); Lighting.Ambient=c; Lighting.OutdoorAmbient=c
-        end})
-        MapRightGB:AddSlider("MapBrightness",{Text="Brightness",Default=10,Min=1,Max=30,Rounding=0,Callback=function(v) if not mapEnabled or featuresLocked then return end; Lighting.Brightness=v/10 end})
-        MapRightGB:AddSlider("MapSaturation",{Text="Saturation",Default=10,Min=0,Max=20,Rounding=0,Callback=function(v) if not mapEnabled or featuresLocked then return end; getCC().Saturation=(v-10)/10 end})
-        MapRightGB:AddSlider("MapContrast",{Text="Contrast",Default=10,Min=0,Max=20,Rounding=0,Callback=function(v) if not mapEnabled or featuresLocked then return end; getCC().Contrast=(v-10)/10 end})
-        MapRightGB:AddDivider()
-        MapRightGB:AddButton("Reset All Colors",function() resetMap(); Library:Notify("Map colors reset!",3) end)
-    else
-        MapLeftGB:AddLabel("[L] Map Color Changer - Lifetime Only")
-        MapRightGB:AddLabel("[L] Custom Settings - Lifetime Only")
-    end
-
-    -- ================================================
-    --   SKIN CHANGER TAB
-    -- ================================================
-    local SkinLeftGB=Tabs.SkinChanger:AddLeftGroupbox("Skin Changer")
-    local SkinRightGB=Tabs.SkinChanger:AddRightGroupbox("Info")
-    local skinLoaded=false
-    SkinLeftGB:AddLabel("Changes your weapon skins client-side.")
-    SkinLeftGB:AddLabel("Only you can see the skin changes.")
-    SkinLeftGB:AddDivider()
-    SkinLeftGB:AddButton("Load Skin Changer",function()
-        if skinLoaded then Library:Notify("Skin changer already loaded!",3) return end
-        Library:Notify("Loading skin changer...",3)
-        task.spawn(function()
-            local ok=pcall(function()
-                loadstring(game:HttpGet("https://raw.githubusercontent.com/endoverdosing/Soluna-API/main/skin-changer.lua",true))()
-            end)
-            if ok then
-                skinLoaded=true
-                Library:Notify("Skin changer loaded! A new window opened.",4)
-            else
-                Library:Notify("Failed to load. Check your connection.",4)
-            end
-        end)
-    end)
-    SkinLeftGB:AddDivider()
-    SkinLeftGB:AddLabel("Only load once per session.")
-    SkinRightGB:AddLabel("How it works:")
-    SkinRightGB:AddDivider()
-    SkinRightGB:AddLabel("1. Press Load Skin Changer")
-    SkinRightGB:AddLabel("2. A new GUI will open")
-    SkinRightGB:AddLabel("3. Pick your weapon")
-    SkinRightGB:AddLabel("4. Pick a skin to apply")
-    SkinRightGB:AddLabel("5. Client-side only - only you see it")
-
-    -- ================================================
-    --   UI SETTINGS TAB
-    -- ================================================
-    local MenuGroup=Tabs["UI Settings"]:AddLeftGroupbox("Menu")
-    local ConfigGroup=Tabs["UI Settings"]:AddRightGroupbox("Configuration")
-    MenuGroup:AddToggle("KeybindMenuOpen",{Default=false,Text="Open Keybind Menu",Callback=function(v) Library.KeybindFrame.Visible=v end})
-    MenuGroup:AddToggle("ShowCustomCursor",{Text="Custom Cursor",Default=true,Callback=function(v) Library.ShowCustomCursor=v end})
-    MenuGroup:AddDropdown("NotificationSide",{Values={"Left","Right"},Default=2,Text="Notification Side",Callback=function(v) Library:SetNotifySide(v) end})
-    MenuGroup:AddDivider()
-    MenuGroup:AddButton("Unload Script",function() Library:Unload() end)
-    MenuGroup:AddLabel("Menu Keybind"):AddKeyPicker("MenuKeybind",{Default="RightShift",NoUI=true,Text="Menu keybind"})
-    Library.ToggleKeybind=Options.MenuKeybind
-    ConfigGroup:AddLabel("Config Management"); ConfigGroup:AddDivider()
-    ConfigGroup:AddDropdown("ConfigList",{Values={},Default=1,Multi=false,Text="Select Config"})
-    ConfigGroup:AddInput("ConfigName",{Default="",Numeric=false,Finished=false,Text="Config Name",Placeholder="MyConfig"})
-    ConfigGroup:AddButton("Save Config",function() local n=Options.ConfigName.Value; if n=="" then Library:Notify("Enter a name!",3) return end; SaveManager:Save(n); Library:Notify("Saved!",3); SaveManager:Refresh() end)
-    ConfigGroup:AddButton("Load Config",function() local n=Options.ConfigName.Value; if n=="" then Library:Notify("Enter a name!",3) return end; if SaveManager:Load(n) then Library:Notify("Loaded!",3) else Library:Notify("Not found!",3) end end)
-    ConfigGroup:AddButton("Delete Config",function() local n=Options.ConfigName.Value; if n=="" then Library:Notify("Enter a name!",3) return end; if SaveManager:Delete(n) then Library:Notify("Deleted!",3); SaveManager:Refresh() else Library:Notify("Not found!",3) end end)
-    ConfigGroup:AddDivider()
-    ConfigGroup:AddButton("Refresh Config List",function() SaveManager:Refresh(); Library:Notify("Refreshed!",2) end)
-    ConfigGroup:AddButton("Set as Autoload",function() local n=Options.ConfigName.Value; if n=="" then Library:Notify("Enter a name!",3) return end; SaveManager:SetAutoload(n); Library:Notify("Set!",3) end)
-
-    -- ================================================
-    --   SETTINGS SAVING - FIXED FOR MOBILE
-    -- ================================================
-    ThemeManager:SetLibrary(Library)
-    SaveManager:SetLibrary(Library)
-    SaveManager:IgnoreThemeSettings()
-    SaveManager:SetIgnoreIndexes({"MenuKeybind","ConfigName","ConfigList","ThemeList"})
-    ThemeManager:SetFolder("RivalsCheat")
-    SaveManager:SetFolder("RivalsCheat/configs")
-    ThemeManager:ApplyToTab(Tabs["UI Settings"])
-    pcall(function()
-        SaveManager:SetAutoload("rivals_autosave")
-        SaveManager:LoadAutoloadConfig()
-    end)
-    -- Save every 5 seconds so mobile force-close never loses settings
-    task.spawn(function()
-        while task.wait(5) do
-            pcall(function() SaveManager:Save("rivals_autosave") end)
-        end
-    end)
-    -- Save when game closes normally
-    game:BindToClose(function()
-        pcall(function() SaveManager:Save("rivals_autosave") end)
-    end)
-    -- Save on every respawn
-    LocalPlayer.CharacterAdded:Connect(function()
-        pcall(function() SaveManager:Save("rivals_autosave") end)
-    end)
-
-    -- ================================================
-    --   INFO TAB
-    -- ================================================
-    local InfoLeftGB=Tabs.Info:AddLeftGroupbox("Script Information")
-    local InfoRightGB=Tabs.Info:AddRightGroupbox("Session")
-    InfoLeftGB:AddLabel("Rivals - thegxx | v"..CURRENT_VERSION)
-    InfoLeftGB:AddDivider()
-    InfoLeftGB:AddLabel("Owner: Demon Executioners")
-    InfoLeftGB:AddDivider()
-    InfoLeftGB:AddLabel("Discord: "..DISCORD)
-    InfoLeftGB:AddButton("Copy Discord",function() setclipboard(DISCORD); Library:Notify("Discord copied!",3) end)
-    InfoLeftGB:AddDivider()
-    InfoLeftGB:AddLabel("Snapchat: "..SNAPCHAT)
-    InfoLeftGB:AddButton("Copy Snapchat",function() setclipboard(SNAPCHAT); Library:Notify("Snapchat copied!",3) end)
-    InfoLeftGB:AddDivider()
-    InfoLeftGB:AddLabel("Instagram: "..INSTAGRAM)
-    InfoLeftGB:AddButton("Copy Instagram",function() setclipboard(INSTAGRAM); Library:Notify("Instagram copied!",3) end)
-    InfoLeftGB:AddDivider()
-    InfoLeftGB:AddLabel("Weekly / Monthly / Lifetime keys available")
-    InfoRightGB:AddLabel("Tier: "..(isAdmin and "Admin" or tier or "User"))
-    InfoRightGB:AddLabel("Username: "..LocalPlayer.Name)
-    InfoRightGB:AddLabel("User ID: "..tostring(LocalPlayer.UserId))
-    InfoRightGB:AddDivider()
-    InfoRightGB:AddButton("Logout / Change Key",function()
-        clearKey(); scriptLoaded=false; accessGranted=false; featuresLocked=true
-        Library:Unload(); task.wait(0.3)
-        buildKeyScreen(onSuccessCallback or function() end)
-    end)
-    InfoRightGB:AddLabel("Logout clears your saved key.")
-
-    Library:OnUnload(function()
-        pcall(function() SaveManager:Save("rivals_autosave") end)
-        for name,conn in pairs(connections) do
-            pcall(function() if type(conn)=="table" and conn.Disconnect then conn:Disconnect() end end)
-        end
-        pcall(function() RunService:UnbindFromRenderStep("Aimbot") end)
-        connections={}
-        stopFly()
-        for player in pairs(espBoxes) do cleanupPlayerESP(player) end
-        for _,l in pairs(chLines) do pcall(function() l:Remove() end) end
-        for p,l in pairs(tracerLines) do pcall(function() l:Remove() end) end
-        for p,d in pairs(hBars2D) do pcall(function() d.outline:Remove(); d.bg:Remove(); d.fill:Remove(); d.text:Remove() end) end
-        pcall(function() fovCircle:Remove() end)
-        if clockGui then clockGui:Destroy() end
-        if infJumpConnection then infJumpConnection:Disconnect() end
-        if afkConn then afkConn:Disconnect() end
-        if ksound then ksound:Destroy() end
-        if lowHPGui then lowHPGui:Destroy() end
-        if specGui then specGui:Destroy() end
-        if hideLoopConn then hideLoopConn:Disconnect() end
-        pcall(function() guiCapture:Disconnect() end)
-        resetMap(); showAllGuis()
-        LocalPlayer.CameraMode=originalCameraType or Enum.CameraMode.Classic
-        LocalPlayer.CameraMaxZoomDistance=originalMaxZoom or 128
-        LocalPlayer.CameraMinZoomDistance=originalMinZoom or 0.5
-        pcall(function() local h=getHumanoid(); if h then h.WalkSpeed=16; h.JumpPower=50; h.PlatformStand=false end end)
-        pcall(function() Camera.FieldOfView=70 end)
-        pcall(function() local l=game:GetService("Lighting"); l.GlobalShadows=true; l.Brightness=1; settings().Rendering.QualityLevel=Enum.QualityLevel.Automatic end)
-    end)
-
-    if isAdmin then
-        pcall(function()
-            game:GetService("TextChatService").MessageReceived:Connect(function(msg)
-                if msg.Text and msg.Text:lower()=="/g2" then
-                    if msg.TextSource and msg.TextSource.UserId==LocalPlayer.UserId then toggleAdminMenu() end
-                end
-            end)
-        end)
-        pcall(function()
-            LocalPlayer.Chatted:Connect(function(msg)
-                if msg:lower()=="/g2" then toggleAdminMenu() end
-            end)
-        end)
-    end
-
-    pcall(function() guiCapture:Disconnect() end)
-
-end)
+        Library:Notify("Rejoining...",2); task​​​​​​​​​​​​​​​​
