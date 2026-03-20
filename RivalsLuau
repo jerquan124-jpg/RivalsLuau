@@ -498,6 +498,7 @@ tryAutoExec(function(isAdmin,tier)
         Rivals          = Window:AddTab("Rivals Specific",      "gear"),
         Extras          = Window:AddTab("UI & Extras",          "gear"),
         MapChanger      = Window:AddTab("Map Colors",           "gear"),
+        SkinChanger     = Window:AddTab("Skin Changer",         "gear"),
         ["UI Settings"] = Window:AddTab("UI Settings",          "settings"),
         Info            = Window:AddTab("Info",                 "user"),
     }
@@ -1037,9 +1038,6 @@ tryAutoExec(function(isAdmin,tier)
     VisualsOtherGroupBox:AddToggle("DeadESPToggle",{Text="Hide Dead ESP",Default=true,Callback=function(v) deadESPEnabled=v end})
     VisualsOtherGroupBox:AddToggle("RainbowModeToggle",{Text="Rainbow Mode",Default=false,Callback=function(v) rainbowModeEnabled=v end})
 
-    -- ================================================
-    --   MOVEMENT TAB - FULLY REWRITTEN FLY v3.12
-    -- ================================================
     local MovementLeftGroupBox=Tabs.Movement:AddLeftGroupbox("Movement Options")
     local flyEnabled=false
     local flySpeed=50
@@ -1093,18 +1091,13 @@ tryAutoExec(function(isAdmin,tier)
         if not flyBV or not flyBV.Parent then startFly(); return end
         if hum then hum.PlatformStand=true end
         local moveDir=Vector3.new(0,0,0)
-        -- Mobile thumbstick
         if hum and hum.MoveDirection.Magnitude>0 then
-            local camFlat=Vector3.new(Camera.CFrame.LookVector.X,0,Camera.CFrame.LookVector.Z).Unit
-            local right=Vector3.new(Camera.CFrame.RightVector.X,0,Camera.CFrame.RightVector.Z).Unit
-            moveDir=moveDir+(camFlat*hum.MoveDirection.Z*-1)+(right*hum.MoveDirection.X)
+            moveDir=moveDir+Vector3.new(hum.MoveDirection.X,0,hum.MoveDirection.Z)
         end
-        -- PC keyboard
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir=moveDir+Vector3.new(Camera.CFrame.LookVector.X,0,Camera.CFrame.LookVector.Z).Unit end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir=moveDir-Vector3.new(Camera.CFrame.LookVector.X,0,Camera.CFrame.LookVector.Z).Unit end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir=moveDir-Vector3.new(Camera.CFrame.RightVector.X,0,Camera.CFrame.RightVector.Z).Unit end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir=moveDir+Vector3.new(Camera.CFrame.RightVector.X,0,Camera.CFrame.RightVector.Z).Unit end
-        -- Up/Down
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) or UserInputService:IsKeyDown(Enum.KeyCode.ButtonA) then
             moveDir=moveDir+Vector3.new(0,1,0)
         end
@@ -1121,7 +1114,6 @@ tryAutoExec(function(isAdmin,tier)
         end
     end)
 
-    -- Clean up fly when character respawns
     LocalPlayer.CharacterAdded:Connect(function()
         flyBV=nil; flyBG=nil
         if flyEnabled then task.wait(0.5); startFly() end
@@ -1410,6 +1402,43 @@ tryAutoExec(function(isAdmin,tier)
         MapRightGB:AddLabel("[L] Custom Settings - Lifetime Only")
     end
 
+    -- ================================================
+    --   SKIN CHANGER TAB
+    -- ================================================
+    local SkinLeftGB=Tabs.SkinChanger:AddLeftGroupbox("Skin Changer")
+    local SkinRightGB=Tabs.SkinChanger:AddRightGroupbox("Info")
+    local skinLoaded=false
+    SkinLeftGB:AddLabel("Changes your weapon skins client-side.")
+    SkinLeftGB:AddLabel("Only you can see the skin changes.")
+    SkinLeftGB:AddDivider()
+    SkinLeftGB:AddButton("Load Skin Changer",function()
+        if skinLoaded then Library:Notify("Skin changer already loaded!",3) return end
+        Library:Notify("Loading skin changer...",3)
+        task.spawn(function()
+            local ok=pcall(function()
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/endoverdosing/Soluna-API/main/skin-changer.lua",true))()
+            end)
+            if ok then
+                skinLoaded=true
+                Library:Notify("Skin changer loaded! A new window opened.",4)
+            else
+                Library:Notify("Failed to load. Check your connection.",4)
+            end
+        end)
+    end)
+    SkinLeftGB:AddDivider()
+    SkinLeftGB:AddLabel("Only load once per session.")
+    SkinRightGB:AddLabel("How it works:")
+    SkinRightGB:AddDivider()
+    SkinRightGB:AddLabel("1. Press Load Skin Changer")
+    SkinRightGB:AddLabel("2. A new GUI will open")
+    SkinRightGB:AddLabel("3. Pick your weapon")
+    SkinRightGB:AddLabel("4. Pick a skin to apply")
+    SkinRightGB:AddLabel("5. Client-side only - only you see it")
+
+    -- ================================================
+    --   UI SETTINGS TAB
+    -- ================================================
     local MenuGroup=Tabs["UI Settings"]:AddLeftGroupbox("Menu")
     local ConfigGroup=Tabs["UI Settings"]:AddRightGroupbox("Configuration")
     MenuGroup:AddToggle("KeybindMenuOpen",{Default=false,Text="Open Keybind Menu",Callback=function(v) Library.KeybindFrame.Visible=v end})
@@ -1429,6 +1458,9 @@ tryAutoExec(function(isAdmin,tier)
     ConfigGroup:AddButton("Refresh Config List",function() SaveManager:Refresh(); Library:Notify("Refreshed!",2) end)
     ConfigGroup:AddButton("Set as Autoload",function() local n=Options.ConfigName.Value; if n=="" then Library:Notify("Enter a name!",3) return end; SaveManager:SetAutoload(n); Library:Notify("Set!",3) end)
 
+    -- ================================================
+    --   SETTINGS SAVING - FIXED FOR MOBILE
+    -- ================================================
     ThemeManager:SetLibrary(Library)
     SaveManager:SetLibrary(Library)
     SaveManager:IgnoreThemeSettings()
@@ -1440,12 +1472,24 @@ tryAutoExec(function(isAdmin,tier)
         SaveManager:SetAutoload("rivals_autosave")
         SaveManager:LoadAutoloadConfig()
     end)
+    -- Save every 5 seconds so mobile force-close never loses settings
     task.spawn(function()
-        while task.wait(30) do
+        while task.wait(5) do
             pcall(function() SaveManager:Save("rivals_autosave") end)
         end
     end)
+    -- Save when game closes normally
+    game:BindToClose(function()
+        pcall(function() SaveManager:Save("rivals_autosave") end)
+    end)
+    -- Save on every respawn
+    LocalPlayer.CharacterAdded:Connect(function()
+        pcall(function() SaveManager:Save("rivals_autosave") end)
+    end)
 
+    -- ================================================
+    --   INFO TAB
+    -- ================================================
     local InfoLeftGB=Tabs.Info:AddLeftGroupbox("Script Information")
     local InfoRightGB=Tabs.Info:AddRightGroupbox("Session")
     InfoLeftGB:AddLabel("Rivals - thegxx | v"..CURRENT_VERSION)
