@@ -1038,55 +1038,95 @@ tryAutoExec(function(isAdmin,tier)
     VisualsOtherGroupBox:AddToggle("RainbowModeToggle",{Text="Rainbow Mode",Default=false,Callback=function(v) rainbowModeEnabled=v end})
 
     -- ================================================
-    --   MOVEMENT TAB - FIXED FLY v3.12
+    --   MOVEMENT TAB - FULLY REWRITTEN FLY v3.12
     -- ================================================
     local MovementLeftGroupBox=Tabs.Movement:AddLeftGroupbox("Movement Options")
-    local flyEnabled=false; local flySpeed=50; local flyBodyVelocity
-    MovementLeftGroupBox:AddToggle("FlyHackToggle",{Text="Fly Hack",Default=false,Callback=function(v)
-        if featuresLocked then Toggles.FlyHackToggle:SetValue(false) return end; flyEnabled=v
-        if v then
-            local root=getRoot()
-            if root then
-                root.Anchored=false
-                if not flyBodyVelocity then
-                    flyBodyVelocity=Instance.new("BodyVelocity")
-                    flyBodyVelocity.MaxForce=Vector3.new(math.huge,math.huge,math.huge)
-                    flyBodyVelocity.Velocity=Vector3.zero
-                    flyBodyVelocity.Parent=root
-                end
-            end
-        else
-            if flyBodyVelocity then flyBodyVelocity:Destroy(); flyBodyVelocity=nil end
+    local flyEnabled=false
+    local flySpeed=50
+    local flyBV=nil
+    local flyBG=nil
+
+    local function startFly()
+        local root=getRoot()
+        local hum=getHumanoid()
+        if not root or not hum then return end
+        hum.PlatformStand=true
+        if not flyBV then
+            flyBV=Instance.new("BodyVelocity")
+            flyBV.MaxForce=Vector3.new(1e9,1e9,1e9)
+            flyBV.Velocity=Vector3.zero
+            flyBV.Parent=root
         end
+        if not flyBG then
+            flyBG=Instance.new("BodyGyro")
+            flyBG.MaxTorque=Vector3.new(1e9,1e9,1e9)
+            flyBG.P=1e4
+            flyBG.CFrame=root.CFrame
+            flyBG.Parent=root
+        end
+    end
+
+    local function stopFly()
+        if flyBV then flyBV:Destroy(); flyBV=nil end
+        if flyBG then flyBG:Destroy(); flyBG=nil end
+        local hum=getHumanoid()
+        if hum then hum.PlatformStand=false end
+    end
+
+    MovementLeftGroupBox:AddToggle("FlyHackToggle",{Text="Fly Hack",Default=false,Callback=function(v)
+        if featuresLocked then Toggles.FlyHackToggle:SetValue(false) return end
+        flyEnabled=v
+        if v then startFly() else stopFly() end
     end})
     MovementLeftGroupBox:AddSlider("FlyHackSpeed",{Text="Fly Speed",Default=50,Min=1,Max=500,Rounding=0,Callback=function(v) flySpeed=v end})
-    MovementLeftGroupBox:AddLabel("Fly Keybind"):AddKeyPicker("FlyKeybind",{Default="F",Mode="Toggle",Text="Fly Key",NoUI=false,Callback=function(v) if featuresLocked then return end; flyEnabled=v; Toggles.FlyHackToggle:SetValue(v) end})
+    MovementLeftGroupBox:AddLabel("Fly Keybind"):AddKeyPicker("FlyKeybind",{Default="F",Mode="Toggle",Text="Fly Key",NoUI=false,Callback=function(v)
+        if featuresLocked then return end
+        flyEnabled=v; Toggles.FlyHackToggle:SetValue(v)
+        if v then startFly() else stopFly() end
+    end})
+
     connections["Fly"]=RunService.Heartbeat:Connect(function()
-        if featuresLocked or not flyEnabled or not flyBodyVelocity or not flyBodyVelocity.Parent then return end
-        local moveDir=Vector3.new(0,0,0)
+        if featuresLocked or not flyEnabled then return end
+        local root=getRoot()
         local hum=getHumanoid()
+        if not root then return end
+        if not flyBV or not flyBV.Parent then startFly(); return end
+        if hum then hum.PlatformStand=true end
+        local moveDir=Vector3.new(0,0,0)
+        -- Mobile thumbstick
         if hum and hum.MoveDirection.Magnitude>0 then
-            moveDir=Vector3.new(hum.MoveDirection.X,0,hum.MoveDirection.Z)
+            local camFlat=Vector3.new(Camera.CFrame.LookVector.X,0,Camera.CFrame.LookVector.Z).Unit
+            local right=Vector3.new(Camera.CFrame.RightVector.X,0,Camera.CFrame.RightVector.Z).Unit
+            moveDir=moveDir+(camFlat*hum.MoveDirection.Z*-1)+(right*hum.MoveDirection.X)
         end
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir=moveDir+Camera.CFrame.LookVector*Vector3.new(1,0,1) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir=moveDir-Camera.CFrame.LookVector*Vector3.new(1,0,1) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir=moveDir-Camera.CFrame.RightVector*Vector3.new(1,0,1) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir=moveDir+Camera.CFrame.RightVector*Vector3.new(1,0,1) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space)
-        or UserInputService:IsKeyDown(Enum.KeyCode.ButtonA)
-        or (hum and hum:GetState()==Enum.HumanoidStateType.Jumping) then
+        -- PC keyboard
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir=moveDir+Vector3.new(Camera.CFrame.LookVector.X,0,Camera.CFrame.LookVector.Z).Unit end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir=moveDir-Vector3.new(Camera.CFrame.LookVector.X,0,Camera.CFrame.LookVector.Z).Unit end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir=moveDir-Vector3.new(Camera.CFrame.RightVector.X,0,Camera.CFrame.RightVector.Z).Unit end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir=moveDir+Vector3.new(Camera.CFrame.RightVector.X,0,Camera.CFrame.RightVector.Z).Unit end
+        -- Up/Down
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) or UserInputService:IsKeyDown(Enum.KeyCode.ButtonA) then
             moveDir=moveDir+Vector3.new(0,1,0)
         end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
-        or UserInputService:IsKeyDown(Enum.KeyCode.ButtonB) then
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.ButtonB) then
             moveDir=moveDir-Vector3.new(0,1,0)
         end
         if moveDir.Magnitude>0 then
-            flyBodyVelocity.Velocity=moveDir.Unit*flySpeed
+            flyBV.Velocity=moveDir.Unit*flySpeed
         else
-            flyBodyVelocity.Velocity=Vector3.zero
+            flyBV.Velocity=Vector3.zero
+        end
+        if flyBG and flyBG.Parent then
+            flyBG.CFrame=CFrame.new(root.Position,root.Position+Camera.CFrame.LookVector)
         end
     end)
+
+    -- Clean up fly when character respawns
+    LocalPlayer.CharacterAdded:Connect(function()
+        flyBV=nil; flyBG=nil
+        if flyEnabled then task.wait(0.5); startFly() end
+    end)
+
     local infJumpEnabled=false; local infJumpConnection
     MovementLeftGroupBox:AddDivider()
     MovementLeftGroupBox:AddToggle("InfiniteJumpToggle",{Text="Infinite Jump",Default=false,Callback=function(v)
@@ -1440,12 +1480,12 @@ tryAutoExec(function(isAdmin,tier)
         end
         pcall(function() RunService:UnbindFromRenderStep("Aimbot") end)
         connections={}
+        stopFly()
         for player in pairs(espBoxes) do cleanupPlayerESP(player) end
         for _,l in pairs(chLines) do pcall(function() l:Remove() end) end
         for p,l in pairs(tracerLines) do pcall(function() l:Remove() end) end
         for p,d in pairs(hBars2D) do pcall(function() d.outline:Remove(); d.bg:Remove(); d.fill:Remove(); d.text:Remove() end) end
         pcall(function() fovCircle:Remove() end)
-        if flyBodyVelocity then flyBodyVelocity:Destroy() end
         if clockGui then clockGui:Destroy() end
         if infJumpConnection then infJumpConnection:Disconnect() end
         if afkConn then afkConn:Disconnect() end
@@ -1458,7 +1498,7 @@ tryAutoExec(function(isAdmin,tier)
         LocalPlayer.CameraMode=originalCameraType or Enum.CameraMode.Classic
         LocalPlayer.CameraMaxZoomDistance=originalMaxZoom or 128
         LocalPlayer.CameraMinZoomDistance=originalMinZoom or 0.5
-        pcall(function() local h=getHumanoid(); if h then h.WalkSpeed=16; h.JumpPower=50 end end)
+        pcall(function() local h=getHumanoid(); if h then h.WalkSpeed=16; h.JumpPower=50; h.PlatformStand=false end end)
         pcall(function() Camera.FieldOfView=70 end)
         pcall(function() local l=game:GetService("Lighting"); l.GlobalShadows=true; l.Brightness=1; settings().Rendering.QualityLevel=Enum.QualityLevel.Automatic end)
     end)
