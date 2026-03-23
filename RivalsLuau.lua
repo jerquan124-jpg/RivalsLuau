@@ -12,7 +12,7 @@ end
 _G.RivalsScriptRunning = true
 
 -- Lock to Rivals only
-local RIVALS_PLACE_ID = 17625359962
+local RIVALS_PLACE_ID = w
 if game.PlaceId ~= RIVALS_PLACE_ID then
     local gui = Instance.new("ScreenGui"); gui.Name = "RivalsWrongGame"; gui.ResetOnSpawn = false; gui.Parent = game.CoreGui
     local f = Instance.new("Frame", gui); f.Size = UDim2.new(0,400,0,120); f.Position = UDim2.new(0.5,-200,0.5,-60); f.BackgroundColor3 = Color3.fromRGB(10,10,16); f.BorderSizePixel = 0; Instance.new("UICorner",f).CornerRadius = UDim.new(0,14)
