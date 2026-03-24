@@ -9,20 +9,6 @@ if _G.RivalsScriptRunning then
     print("Rivals script already running - ignoring duplicate execute")
     return
 end
-_G.RivalsScriptRunning = true
-
--- Lock to Rivals only - uses GameId (Universe ID) which is same across lobby + all game modes
-local RIVALS_GAME_ID = 3596899603 -- Rivals Universe ID (same for lobby and all game modes)
-if game.GameId ~= RIVALS_GAME_ID then
-    local gui = Instance.new("ScreenGui"); gui.Name = "RivalsWrongGame"; gui.ResetOnSpawn = false; gui.Parent = game.CoreGui
-    local f = Instance.new("Frame", gui); f.Size = UDim2.new(0,400,0,120); f.Position = UDim2.new(0.5,-200,0.5,-60); f.BackgroundColor3 = Color3.fromRGB(10,10,16); f.BorderSizePixel = 0; Instance.new("UICorner",f).CornerRadius = UDim.new(0,14)
-    local s = Instance.new("UIStroke",f); s.Color = Color3.fromRGB(220,50,50); s.Thickness = 2
-    local t = Instance.new("TextLabel",f); t.Size = UDim2.new(1,0,0.5,0); t.Position = UDim2.new(0,0,0.1,0); t.BackgroundTransparency = 1; t.Text = "Wrong Game!"; t.TextColor3 = Color3.fromRGB(220,80,80); t.TextSize = 22; t.Font = Enum.Font.GothamBold
-    local t2 = Instance.new("TextLabel",f); t2.Size = UDim2.new(1,-20,0.4,0); t2.Position = UDim2.new(0,10,0.55,0); t2.BackgroundTransparency = 1; t2.Text = "This script only works in Rivals."; t2.TextColor3 = Color3.fromRGB(160,160,180); t2.TextSize = 14; t2.Font = Enum.Font.Gotham
-    task.delay(5, function() if gui and gui.Parent then gui:Destroy() end end)
-    _G.RivalsScriptRunning = nil
-    return
-end
 
 task.wait(2)
 if not game:IsLoaded() then game.Loaded:Wait() end
